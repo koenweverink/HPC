@@ -1,9 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <mpi.h>
 #include <omp.h>
-#include "grower.h"
+#include "grower.h" // Include the provided grower.h
 
 #define GRID_SIZE 3000
 #define ITERATIONS 5000
@@ -11,45 +10,25 @@
 // Function prototypes
 void initialize_grid(uint8_t grid[GRID_SIZE][GRID_SIZE]);
 void copy_grid(uint8_t dest[GRID_SIZE][GRID_SIZE], uint8_t src[GRID_SIZE][GRID_SIZE]);
-void update_grid(uint8_t grid[GRID_SIZE][GRID_SIZE], uint8_t new_grid[GRID_SIZE][GRID_SIZE], int start_row, int end_row);
 int count_neighbors(uint8_t grid[GRID_SIZE][GRID_SIZE], int x, int y);
 
-int main(int argc, char** argv) {
-    int rank, size;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    if (GRID_SIZE % size != 0) {
-        if (rank == 0) {
-            fprintf(stderr, "Grid size must be divisible by the number of processes.\n");
-        }
-        MPI_Finalize();
-        return EXIT_FAILURE;
-    }
-
-    int rows_per_process = GRID_SIZE / size;
-    uint8_t(*grid)[GRID_SIZE] = malloc(GRID_SIZE * GRID_SIZE * sizeof(uint8_t));
-    uint8_t(*new_grid)[GRID_SIZE] = malloc(GRID_SIZE * GRID_SIZE * sizeof(uint8_t));
+int main() {
+    // Allocate the grids
+    uint8_t (*grid)[GRID_SIZE] = malloc(GRID_SIZE * GRID_SIZE * sizeof(uint8_t));
+    uint8_t (*new_grid)[GRID_SIZE] = malloc(GRID_SIZE * GRID_SIZE * sizeof(uint8_t));
 
     if (grid == NULL || new_grid == NULL) {
         fprintf(stderr, "Memory allocation failed.\n");
-        MPI_Finalize();
         return EXIT_FAILURE;
     }
 
-    if (rank == 0) {
-        initialize_grid(grid);
-    }
+    // Initialize the grid using grower.h
+    initialize_grid(grid);
 
-    MPI_Bcast(grid, GRID_SIZE * GRID_SIZE, MPI_UINT8_T, 0, MPI_COMM_WORLD);
-
-    for (int iter = 1; iter < ITERATIONS; iter++) {
-        int start_row = rank * rows_per_process;
-        int end_row = start_row + rows_per_process;
-
+    for (int iter = 0; iter < ITERATIONS; iter++) {
+        // Update the grid in parallel
         #pragma omp parallel for
-        for (int i = start_row; i < end_row; i++) {
+        for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 int neighbors = count_neighbors(grid, i, j);
                 if (grid[i][j] == 1) {
@@ -60,61 +39,57 @@ int main(int argc, char** argv) {
             }
         }
 
-        MPI_Allgather(MPI_IN_PLACE, rows_per_process * GRID_SIZE, MPI_UINT8_T, new_grid, rows_per_process * GRID_SIZE, MPI_UINT8_T, MPI_COMM_WORLD);
-        copy_grid(grid, new_grid);
-
-        int local_population = 0;
-        for (int i = start_row; i < end_row; i++) {
-            for (int j = 0; j < GRID_SIZE; j++) {
-                local_population += grid[i][j];
-            }
-        }
-
-        int total_population;
-        MPI_Reduce(&local_population, &total_population, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
-        if (rank == 0) {
-            printf("Iteration %d: Population = %d\n", iter, total_population);
-        }
-    }
-
-    if (rank == 0) {
-        int population = 0;
+        // Copy the new grid into the current grid
+        #pragma omp parallel for
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
-                population += grid[i][j];
+                grid[i][j] = new_grid[i][j];
             }
         }
-        printf("Final population: %d\n", population);
+
+    //     // Calculate population (number of alive cells) in parallel
+    //     int total_population = 0;
+    //     #pragma omp parallel for reduction(+ : total_population)
+    //     for (int i = 0; i < GRID_SIZE; i++) {
+    //         for (int j = 0; j < GRID_SIZE; j++) {
+    //             total_population += grid[i][j];
+    //         }
+    //     }
+
+    //     printf("Iteration %d: Population = %d\n", iter + 1, total_population);
     }
+
+    // Final population
+    int final_population = 0;
+    #pragma omp parallel for reduction(+ : final_population)
+    for (int i = 0; i < GRID_SIZE; i++) {
+        for (int j = 0; j < GRID_SIZE; j++) {
+            final_population += grid[i][j];
+        }
+    }
+    printf("Final population: %d\n", final_population);
 
     free(grid);
     free(new_grid);
-    MPI_Finalize();
     return EXIT_SUCCESS;
 }
 
 void initialize_grid(uint8_t grid[GRID_SIZE][GRID_SIZE]) {
+    // Set all cells to 0
     for (int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
             grid[i][j] = 0;
         }
     }
 
-    int offset_x = 1500;
-    int offset_y = 1500;
+    // Offset for placing the grower pattern in the middle of the grid
+    int offset_x = (GRID_SIZE - GROWER_HEIGHT) / 2;
+    int offset_y = (GRID_SIZE - GROWER_WIDTH) / 2;
 
+    // Copy the grower pattern into the grid
     for (int i = 0; i < GROWER_HEIGHT; i++) {
         for (int j = 0; j < GROWER_WIDTH; j++) {
             grid[offset_x + i][offset_y + j] = grower[i][j];
-        }
-    }
-}
-
-void copy_grid(uint8_t dest[GRID_SIZE][GRID_SIZE], uint8_t src[GRID_SIZE][GRID_SIZE]) {
-    for (int i = 0; i < GRID_SIZE; i++) {
-        for (int j = 0; j < GRID_SIZE; j++) {
-            dest[i][j] = src[i][j];
         }
     }
 }

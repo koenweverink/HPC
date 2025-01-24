@@ -1,0 +1,35 @@
+Final Population and Runtime Results:
+Running with OMP_NUM_THREADS=1...
+Final population: 3647
+OMP_NUM_THREADS=1, Time Taken: 2168s
+Running with OMP_NUM_THREADS=2...
+Final population: 3647
+OMP_NUM_THREADS=2, Time Taken: 1080s
+Running with OMP_NUM_THREADS=4...
+Final population: 3647
+OMP_NUM_THREADS=4, Time Taken: 547s
+Running with OMP_NUM_THREADS=8...
+Final population: 3647
+OMP_NUM_THREADS=8, Time Taken: 279s
+Running with OMP_NUM_THREADS=16...
+Final population: 3647
+OMP_NUM_THREADS=16, Time Taken: 146s
+Running with OMP_NUM_THREADS=32...
+Final population: 3647
+OMP_NUM_THREADS=32, Time Taken: 74s
+Running with OMP_NUM_THREADS=64...
+Final population: 3647
+OMP_NUM_THREADS=64, Time Taken: 36s
+Running with OMP_NUM_THREADS=128...
+Final population: 3647
+OMP_NUM_THREADS=128, Time Taken: 22s
+
+JOB STATISTICS
+==============
+Job ID: 9595579
+Cluster: snellius
+User/Group: scur1265/scur1265
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 128
+CPU Utilized: 05:08:03
